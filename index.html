@@ -3,485 +3,114 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#123b35">
-<title>School GeoTag Audit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoTag Photo</title>
 
 <style>
-:root {
-    font-family: Arial, sans-serif;
-    color: #17231f;
+body {
+    margin: 0;
+    padding: 18px;
     background: #f2f6f3;
+    font-family: Arial, sans-serif;
+    text-align: center;
 }
-
-* { box-sizing: border-box; }
-
-body { margin: 0; }
-
-.container {
-    max-width: 760px;
-    margin: auto;
-    padding: 16px;
-}
-
-header { padding: 12px 2px; }
-
-h1 { color: #123b35; margin: 0; }
-
-h2 {
-    font-size: 19px;
-    color: #17483d;
-}
-
-.panel {
-    background: white;
-    border-radius: 15px;
-    padding: 16px;
-    margin: 14px 0;
-    box-shadow: 0 4px 18px #153b3510;
-}
-
-label {
-    display: block;
-    font-weight: bold;
-    font-size: 13px;
-    margin: 12px 0 5px;
-}
-
-input, select, textarea {
+h2 { color: #176b58; }
+video, #photo {
     width: 100%;
-    padding: 12px;
-    border: 1px solid #d5e0da;
-    border-radius: 9px;
-    font-size: 15px;
-}
-
-textarea { min-height: 65px; }
-
-.preview {
-    background: #101715;
+    max-width: 500px;
     border-radius: 12px;
-    overflow: hidden;
-    aspect-ratio: 4/3;
-    display: grid;
-    place-items: center;
-    color: white;
+    background: #111;
 }
-
-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
 button {
+    display: block;
     width: 100%;
-    padding: 14px;
-    margin-top: 10px;
+    max-width: 500px;
+    margin: 12px auto;
+    padding: 15px;
     border: none;
     border-radius: 10px;
     background: #176b58;
     color: white;
+    font-size: 16px;
     font-weight: bold;
-    font-size: 15px;
-    cursor: pointer;
 }
-
-button.secondary {
-    background: #e5eee9;
-    color: #17483d;
-}
-
-button.danger { background: #9b342b; }
-
-button:disabled { opacity: 0.45; }
-
-.grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 9px;
-    margin-top: 12px;
-}
-
-.metric {
-    background: #f1f6f3;
-    padding: 11px;
-    border-radius: 9px;
-    overflow-wrap: anywhere;
-}
-
-.metric small {
-    display: block;
-    font-size: 10px;
-    color: #687970;
-}
-
-.metric strong { font-size: 13px; }
-
+#photo { display: none; }
 #status {
-    margin-top: 12px;
-    font-size: 13px;
+    margin: 15px auto;
+    max-width: 500px;
     line-height: 1.5;
-    overflow-wrap: anywhere;
-}
-
-#result {
-    display: none;
-    width: 100%;
-    margin-top: 12px;
-    border-radius: 10px;
-}
-
-.tablewrap { overflow-x: auto; }
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-
-th, td {
-    text-align: left;
-    padding: 9px 6px;
-    border-bottom: 1px solid #e7eee9;
-    vertical-align: top;
-}
-
-.small {
-    font-size: 11px;
-    color: #687970;
-}
-
-.note {
-    font-size: 12px;
-    color: #64736c;
-    line-height: 1.5;
-}
-
-@media(max-width:450px) {
-    .container { padding: 10px; }
 }
 </style>
 
-<!-- EXIF metadata library -->
 <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
-
 </head>
 
 <body>
 
-<div class="container">
+<h2>GeoTag Photo</h2>
+<p>Capture photos with automatic GPS location.</p>
 
-<header>
-    <h1>School GeoTag Audit</h1>
-    <p>GPS-enabled school visit and inspection evidence</p>
-</header>
+<video id="camera" autoplay playsinline muted></video>
 
-<!-- SECTION 1 -->
+<button id="start">OPEN CAMERA</button>
 
-<section class="panel">
+<button id="capture" disabled>TAKE GEO-TAGGED PHOTO</button>
 
-<h2>1. Visit Information</h2>
+<div id="status">Ready to capture.</div>
 
-<label>Auditor / Employee Name *</label>
-<input id="auditor" placeholder="Enter employee name">
+<img id="photo" alt="Geo-tagged photo">
 
-<label>School Name *</label>
-<input id="school" placeholder="Enter school name">
-
-<label>Visit Type</label>
-<select id="visitType">
-    <option>School visit</option>
-    <option>Infrastructure inspection</option>
-    <option>Principal meeting</option>
-    <option>Classroom observation</option>
-    <option>Event verification</option>
-    <option>Other inspection</option>
-</select>
-
-<label>Visit Notes</label>
-<textarea id="notes"
-placeholder="Enter inspection observations"></textarea>
-
-</section>
-
-<!-- SECTION 2 -->
-
-<section class="panel">
-
-<h2>2. Camera and GPS Capture</h2>
-
-<div class="preview">
-
-    <video id="video" autoplay playsinline muted></video>
-
-    <div id="placeholder">
-        Camera preview will appear here
-    </div>
-
-</div>
-
-<button id="start">START CAMERA</button>
-
-<button id="capture" disabled>
-CAPTURE AUDIT PHOTO
+<button id="download" style="display:none">
+DOWNLOAD PHOTO
 </button>
-
-<div id="status">
-Ready. Enter visit details and start camera.
-</div>
-
-<div class="grid">
-
-    <div class="metric">
-        <small>LATITUDE</small>
-        <strong id="lat">—</strong>
-    </div>
-
-    <div class="metric">
-        <small>LONGITUDE</small>
-        <strong id="lon">—</strong>
-    </div>
-
-    <div class="metric">
-        <small>GPS ACCURACY</small>
-        <strong id="accuracy">—</strong>
-    </div>
-
-    <div class="metric">
-        <small>CAPTURE DATE/TIME</small>
-        <strong id="capturedAt">—</strong>
-    </div>
-
-</div>
 
 <canvas id="canvas" hidden></canvas>
 
-<img id="result" alt="Audit photograph">
-
-<button id="downloadPhoto" class="secondary" disabled>
-DOWNLOAD GEO-TAGGED JPG
-</button>
-
-</section>
-
-<!-- SECTION 3 -->
-
-<section class="panel">
-
-<h2>3. Audit Register</h2>
-
-<p class="note">
-All captured records are saved in this browser.
-Export the register regularly.
-</p>
-
-<p><b>Total Records:</b> <span id="count">0</span></p>
-
-<button id="exportCsv" class="secondary">
-EXPORT AUDIT REGISTER CSV
-</button>
-
-<button id="exportJson" class="secondary">
-DOWNLOAD JSON BACKUP
-</button>
-
-<div class="tablewrap">
-
-<table>
-
-<thead>
-<tr>
-<th>Photo ID</th>
-<th>School</th>
-<th>Date</th>
-<th>GPS</th>
-<th>SHA-256</th>
-</tr>
-</thead>
-
-<tbody id="records">
-<tr>
-<td colspan="5">No records available.</td>
-</tr>
-</tbody>
-
-</table>
-
-</div>
-
-<button id="clearRegister" class="danger">
-CLEAR REGISTER
-</button>
-
-</section>
-
-<!-- SECTION 4 -->
-
-<section class="panel">
-
-<h2>4. Audit Evidence Information</h2>
-
-<p class="note">
-GPS coordinates are embedded in JPG EXIF metadata.
-The image also displays its audit ID, school name,
-GPS coordinates and capture time.
-</p>
-
-<p class="note">
-SHA-256 is calculated from the final JPG file.
-Changing the image will normally change its hash.
-</p>
-
-<p class="note">
-This is a browser-based prototype. It does not
-provide tamper-proof storage, trusted timestamping
-or server-side employee authentication.
-</p>
-
-</section>
-
-</div>
-
 <script>
 
-"use strict";
-
-const $ = id => document.getElementById(id);
-
-const video = $("video");
-const canvas = $("canvas");
-const result = $("result");
+const camera = document.getElementById("camera");
+const canvas = document.getElementById("canvas");
+const photo = document.getElementById("photo");
+const statusBox = document.getElementById("status");
 
 let stream = null;
-let currentBlob = null;
-let currentURL = null;
-
-const STORAGE_KEY = "school_geotag_audit_records_v1";
-
-let records = loadRecords();
-
-
-// LOAD EXISTING RECORDS
-
-function loadRecords() {
-
-    try {
-        return JSON.parse(
-            localStorage.getItem(STORAGE_KEY) || "[]"
-        );
-    } catch(e) {
-        return [];
-    }
-
-}
-
-
-// SAVE RECORDS
-
-function saveRecords() {
-
-    localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(records)
-    );
-
-    renderRecords();
-
-}
-
-
-// STATUS
-
-function setStatus(message) {
-    $("status").textContent = message;
-}
-
-
-// DATE HELPERS
+let photoURL = null;
 
 function pad(n) {
-    return String(n).padStart(2, "0");
+    return String(n).padStart(2,"0");
 }
 
-function exifDate(d) {
-
-    return d.getFullYear() + ":" +
-        pad(d.getMonth()+1) + ":" +
-        pad(d.getDate()) + " " +
-        pad(d.getHours()) + ":" +
-        pad(d.getMinutes()) + ":" +
-        pad(d.getSeconds());
-
+function dateFormat(d) {
+    return d.getFullYear()+":"+
+    pad(d.getMonth()+1)+":"+
+    pad(d.getDate())+" "+
+    pad(d.getHours())+":"+
+    pad(d.getMinutes())+":"+
+    pad(d.getSeconds());
 }
 
-function utcExifDate(d) {
-
-    return d.getUTCFullYear() + ":" +
-        pad(d.getUTCMonth()+1) + ":" +
-        pad(d.getUTCDate());
-
+function gpsDate(d) {
+    return d.getUTCFullYear()+":"+
+    pad(d.getUTCMonth()+1)+":"+
+    pad(d.getUTCDate());
 }
-
-
-// GPS CONVERSION FOR EXIF
 
 function toDMS(value) {
-
     const a = Math.abs(value);
-
-    const degrees = Math.floor(a);
-
-    const minFloat = (a-degrees)*60;
-
-    const minutes = Math.floor(minFloat);
-
-    const seconds = (minFloat-minutes)*60;
+    const deg = Math.floor(a);
+    const minFloat = (a-deg)*60;
+    const min = Math.floor(minFloat);
+    const sec = (minFloat-min)*60;
 
     return [
-        [degrees,1],
-        [minutes,1],
-        [Math.round(seconds*10000),10000]
+        [deg,1],
+        [min,1],
+        [Math.round(sec*10000),10000]
     ];
-
 }
 
-function rational(value, scale=1000) {
-    return [Math.round(value*scale),scale];
-}
-
-
-// UNIQUE PHOTO ID
-
-function createPhotoID() {
-
-    const d = new Date();
-
-    const random = crypto.randomUUID ?
-        crypto.randomUUID().slice(0,8) :
-        Math.random().toString(36).slice(2,10);
-
-    return "SCH-" +
-        d.getFullYear() +
-        pad(d.getMonth()+1) +
-        pad(d.getDate()) +
-        "-" +
-        random.toUpperCase();
-
-}
-
-
-// GET GPS
-
-function getGPS() {
-
+function gpsLocation() {
     return new Promise((resolve,reject) => {
-
-        if(!navigator.geolocation) {
-            reject(new Error("GPS not supported"));
-            return;
-        }
-
         navigator.geolocation.getCurrentPosition(
             resolve,
             reject,
@@ -491,208 +120,88 @@ function getGPS() {
                 maximumAge:0
             }
         );
-
     });
-
 }
 
+// OPEN CAMERA
 
-// SHA-256 HASH
-
-async function calculateSHA256(blob) {
-
-    const buffer = await blob.arrayBuffer();
-
-    const digest = await crypto.subtle.digest(
-        "SHA-256",
-        buffer
-    );
-
-    return Array.from(new Uint8Array(digest))
-        .map(b => b.toString(16).padStart(2,"0"))
-        .join("");
-
-}
-
-
-// CONVERT DATA URL TO BLOB
-
-function dataURLToBlob(dataURL) {
-
-    const parts = dataURL.split(",");
-
-    const binary = atob(parts[1]);
-
-    const bytes = new Uint8Array(binary.length);
-
-    for(let i=0;i<binary.length;i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-
-    return new Blob(
-        [bytes],
-        {type:"image/jpeg"}
-    );
-
-}
-
-
-// DOWNLOAD HELPER
-
-function downloadBlob(blob,filename) {
-
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-
-    a.href = url;
-    a.download = filename;
-
-    document.body.appendChild(a);
-
-    a.click();
-
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url),3000);
-
-}
-
-
-// START CAMERA
-
-$("start").addEventListener("click",async function() {
+document.getElementById("start").onclick =
+async function() {
 
     try {
 
-        if(!navigator.mediaDevices ||
-           !navigator.mediaDevices.getUserMedia) {
-
-            throw new Error(
-                "Camera requires HTTPS and a modern browser."
-            );
-
-        }
-
         stream = await navigator.mediaDevices.getUserMedia({
-
             video: {
                 facingMode: {ideal:"environment"}
             },
-
             audio:false
-
         });
 
-        video.srcObject = stream;
+        camera.srcObject = stream;
 
-        await video.play();
+        await camera.play();
 
-        $("placeholder").style.display = "none";
+        document.getElementById("capture").disabled = false;
 
-        $("capture").disabled = false;
+        statusBox.textContent = "Camera ready.";
 
-        setStatus("Camera ready. You can capture audit photos.");
+    } catch(e) {
 
-    } catch(error) {
-
-        setStatus("Camera error: " + error.message);
+        statusBox.textContent = "Camera error: "+e.message;
 
     }
 
-});
+};
 
+// CAPTURE PHOTO
 
-// CAPTURE AUDIT PHOTO
+document.getElementById("capture").onclick =
+async function() {
 
-$("capture").addEventListener("click",async function() {
+    const button = document.getElementById("capture");
 
-    const auditor = $("auditor").value.trim();
+    button.disabled = true;
 
-    const school = $("school").value.trim();
-
-    if(!auditor || !school) {
-
-        setStatus(
-            "Please enter auditor name and school name."
-        );
-
-        return;
-
-    }
-
-    if(!window.piexif) {
-
-        setStatus(
-            "EXIF library unavailable. Check internet and reload."
-        );
-
-        return;
-
-    }
-
-    if(!video.videoWidth) {
-
-        setStatus("Camera is not ready.");
-
-        return;
-
-    }
-
-    $("capture").disabled = true;
-
-    setStatus("Obtaining fresh GPS location...");
+    statusBox.textContent = "Getting GPS location...";
 
     try {
 
-        // OBTAIN GPS
+        if(!window.piexif) {
+            throw new Error("EXIF library unavailable. Check internet.");
+        }
 
-        const position = await getGPS();
+        const position = await gpsLocation();
 
-        const latitude = position.coords.latitude;
-
-        const longitude = position.coords.longitude;
-
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
         const accuracy = position.coords.accuracy;
 
-        const altitude = position.coords.altitude;
+        const now = new Date();
 
-        const captured = new Date();
-
-        const photoID = createPhotoID();
-
-        // CAPTURE IMAGE
-
-        const width = video.videoWidth;
-
-        const height = video.videoHeight;
+        const width = camera.videoWidth;
+        const height = camera.videoHeight;
 
         canvas.width = width;
         canvas.height = height;
 
         const ctx = canvas.getContext("2d");
 
-        ctx.drawImage(video,0,0,width,height);
+        ctx.drawImage(camera,0,0,width,height);
 
-        // ADD VISIBLE AUDIT WATERMARK
+        // LOCATION WATERMARK
 
-        const band = Math.max(125,height*0.17);
+        const band = Math.max(125,height*0.18);
 
         ctx.fillStyle = "rgba(0,0,0,0.75)";
 
-        ctx.fillRect(
-            0,
-            height-band,
-            width,
-            band
-        );
+        ctx.fillRect(0,height-band,width,band);
 
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "white";
 
-        ctx.font = "bold 24px Arial";
+        ctx.font = "bold 23px Arial";
 
         ctx.fillText(
-            "SCHOOL AUDIT | " + photoID,
+            "GEO-TAG PHOTO",
             20,
             height-band+30
         );
@@ -700,121 +209,75 @@ $("capture").addEventListener("click",async function() {
         ctx.font = "18px Arial";
 
         ctx.fillText(
-            school.substring(0,55),
+            "Latitude: "+lat.toFixed(6),
             20,
             height-band+60
         );
 
         ctx.fillText(
-            "Lat: " + latitude.toFixed(6) +
-            " Lon: " + longitude.toFixed(6),
+            "Longitude: "+lon.toFixed(6),
             20,
-            height-band+90
+            height-band+88
         );
 
         ctx.fillText(
-            "GPS Accuracy: +/- " +
-            Math.round(accuracy) + " metres",
+            "Accuracy: +/- "+Math.round(accuracy)+" metres",
             20,
             height-band+115
         );
 
-        // CREATE BASE JPG
-
-        const baseImage = canvas.toDataURL(
-            "image/jpeg",
-            0.94
+        ctx.fillText(
+            now.toLocaleString(),
+            20,
+            height-band+140
         );
 
-        // EXIF IMAGE INFORMATION
+        // CREATE JPEG
 
-        const zeroth = {};
+        const baseImage = canvas.toDataURL("image/jpeg",0.95);
 
-        zeroth[piexif.ImageIFD.Make] =
-            "GeoTag Photo";
-
-        zeroth[piexif.ImageIFD.Model] =
-            "Browser Camera";
-
-        zeroth[piexif.ImageIFD.Software] =
-            "School GeoTag Audit";
-
-        zeroth[piexif.ImageIFD.DateTime] =
-            exifDate(captured);
-
-        zeroth[piexif.ImageIFD.ImageDescription] =
-            "Audit ID: " + photoID +
-            "; School: " + school +
-            "; Auditor: " + auditor;
-
-        // EXIF DATE INFORMATION
+        // EMBED GPS INTO EXIF
 
         const exif = {
 
-            "0th": zeroth,
-
-            "Exif": {
-
-                [piexif.ExifIFD.DateTimeOriginal]:
-                    exifDate(captured),
-
-                [piexif.ExifIFD.DateTimeDigitized]:
-                    exifDate(captured),
-
-                [piexif.ExifIFD.UserComment]:
-                    "ASCII\0\0\0" +
-                    "AuditID=" + photoID +
-                    "; School=" + school +
-                    "; Auditor=" + auditor +
-                    "; AccuracyM=" + accuracy.toFixed(1)
-
+            "0th": {
+                [piexif.ImageIFD.DateTime]:dateFormat(now),
+                [piexif.ImageIFD.Software]:"GeoTag Photo"
             },
 
-            // ACTUAL GPS EXIF METADATA
+            "Exif": {
+                [piexif.ExifIFD.DateTimeOriginal]:dateFormat(now),
+                [piexif.ExifIFD.DateTimeDigitized]:dateFormat(now)
+            },
 
             "GPS": {
 
-                [piexif.GPSIFD.GPSVersionID]:
-                    [2,3,0,0],
+                [piexif.GPSIFD.GPSVersionID]:[2,3,0,0],
 
                 [piexif.GPSIFD.GPSLatitudeRef]:
-                    latitude >= 0 ? "N" : "S",
+                    lat>=0?"N":"S",
 
                 [piexif.GPSIFD.GPSLatitude]:
-                    toDMS(latitude),
+                    toDMS(lat),
 
                 [piexif.GPSIFD.GPSLongitudeRef]:
-                    longitude >= 0 ? "E" : "W",
+                    lon>=0?"E":"W",
 
                 [piexif.GPSIFD.GPSLongitude]:
-                    toDMS(longitude),
-
-                [piexif.GPSIFD.GPSAltitudeRef]:
-                    altitude !== null && altitude < 0 ? 1 : 0,
-
-                [piexif.GPSIFD.GPSAltitude]:
-                    rational(Math.abs(altitude || 0),100),
+                    toDMS(lon),
 
                 [piexif.GPSIFD.GPSDateStamp]:
-                    utcExifDate(captured),
+                    gpsDate(now),
 
-                [piexif.GPSIFD.GPSTimeStamp]: [
-
-                    rational(captured.getUTCHours()),
-                    rational(captured.getUTCMinutes()),
-
-                    rational(
-                        captured.getUTCSeconds() +
-                        captured.getUTCMilliseconds()/1000
-                    )
-
+                [piexif.GPSIFD.GPSTimeStamp]:[
+                    [now.getUTCHours(),1],
+                    [now.getUTCMinutes(),1],
+                    [now.getUTCSeconds(),1]
                 ]
 
             }
 
         };
-
-        // INSERT EXIF INTO JPG
 
         const exifBytes = piexif.dump(exif);
 
@@ -823,310 +286,68 @@ $("capture").addEventListener("click",async function() {
             baseImage
         );
 
-        const finalBlob = dataURLToBlob(finalImage);
+        const binary = atob(finalImage.split(",")[1]);
 
-        // CALCULATE HASH OF FINAL JPG
+        const bytes = new Uint8Array(binary.length);
 
-        const hash = await calculateSHA256(finalBlob);
-
-        const filename = photoID + ".jpg";
-
-        // CREATE AUDIT REGISTER RECORD
-
-        const record = {
-
-            photoID: photoID,
-
-            filename: filename,
-
-            auditor: auditor,
-
-            school: school,
-
-            visitType: $("visitType").value,
-
-            notes: $("notes").value.trim(),
-
-            capturedUTC: captured.toISOString(),
-
-            capturedLocal: captured.toLocaleString(),
-
-            latitude: latitude,
-
-            longitude: longitude,
-
-            accuracyMetres: Number(accuracy.toFixed(1)),
-
-            altitudeMetres: altitude,
-
-            sha256: hash,
-
-            fileSizeBytes: finalBlob.size,
-
-            exifGPSEmbedded: true
-
-        };
-
-        records.unshift(record);
-
-        saveRecords();
-
-        // SHOW RESULT
-
-        if(currentURL) {
-            URL.revokeObjectURL(currentURL);
+        for(let i=0;i<binary.length;i++) {
+            bytes[i] = binary.charCodeAt(i);
         }
 
-        currentBlob = finalBlob;
-
-        currentURL = URL.createObjectURL(finalBlob);
-
-        result.src = currentURL;
-
-        result.style.display = "block";
-
-        $("lat").textContent = latitude.toFixed(6);
-
-        $("lon").textContent = longitude.toFixed(6);
-
-        $("accuracy").textContent =
-            "+/- " + Math.round(accuracy) + " metres";
-
-        $("capturedAt").textContent =
-            captured.toLocaleString();
-
-        $("downloadPhoto").disabled = false;
-
-        $("downloadPhoto").onclick = function() {
-
-            downloadBlob(
-                currentBlob,
-                filename
-            );
-
-        };
-
-        setStatus(
-            "Audit photo successfully created. Photo ID: " +
-            photoID +
-            " | SHA-256: " + hash
+        const blob = new Blob(
+            [bytes],
+            {type:"image/jpeg"}
         );
 
-    } catch(error) {
+        if(photoURL) URL.revokeObjectURL(photoURL);
 
-        let message = error.message || "Unknown error";
+        photoURL = URL.createObjectURL(blob);
 
-        if(error.code === 1) {
-            message = "Location permission denied.";
-        }
+        photo.src = photoURL;
 
-        if(error.code === 2) {
-            message = "Unable to determine GPS location.";
-        }
+        photo.style.display = "block";
 
-        if(error.code === 3) {
-            message = "GPS timeout. Try again outdoors.";
-        }
+        document.getElementById("download").style.display = "block";
 
-        setStatus("Capture failed: " + message);
+        statusBox.textContent =
+            "Photo captured successfully with GPS EXIF metadata.";
+
+    } catch(e) {
+
+        statusBox.textContent = "Error: "+e.message;
 
     } finally {
 
-        $("capture").disabled = false;
+        button.disabled = false;
 
     }
 
-});
+};
 
+// DOWNLOAD PHOTO
 
-// CSV EXPORT
+document.getElementById("download").onclick =
+function() {
 
-function csvEscape(value) {
+    if(!photoURL) return;
 
-    return '"' +
-        String(value ?? "").replace(/"/g,'""') +
-        '"';
+    const a = document.createElement("a");
 
-}
+    a.href = photoURL;
 
-const columns = [
+    a.download = "GeoTag_"+Date.now()+".jpg";
 
-    "photoID",
-    "filename",
-    "auditor",
-    "school",
-    "visitType",
-    "notes",
-    "capturedUTC",
-    "capturedLocal",
-    "latitude",
-    "longitude",
-    "accuracyMetres",
-    "altitudeMetres",
-    "sha256",
-    "fileSizeBytes",
-    "exifGPSEmbedded"
+    a.click();
 
-];
-
-$("exportCsv").addEventListener("click",function() {
-
-    if(!records.length) {
-
-        setStatus("No records available to export.");
-
-        return;
-
-    }
-
-    const lines = [
-
-        columns.join(","),
-
-        ...records.map(record =>
-
-            columns.map(key =>
-
-                csvEscape(record[key])
-
-            ).join(",")
-
-        )
-
-    ];
-
-    const csv = "\uFEFF" + lines.join("\r\n");
-
-    downloadBlob(
-
-        new Blob(
-            [csv],
-            {type:"text/csv;charset=utf-8"}
-        ),
-
-        "School_Audit_Register.csv"
-
-    );
-
-});
-
-
-// JSON BACKUP
-
-$("exportJson").addEventListener("click",function() {
-
-    const backup = {
-
-        exportedAt: new Date().toISOString(),
-
-        records: records
-
-    };
-
-    downloadBlob(
-
-        new Blob(
-            [JSON.stringify(backup,null,2)],
-            {type:"application/json"}
-        ),
-
-        "School_Audit_Backup.json"
-
-    );
-
-});
-
-
-// CLEAR REGISTER
-
-$("clearRegister").addEventListener("click",function() {
-
-    if(!confirm(
-        "Delete all locally stored audit records? Export a backup first."
-    )) return;
-
-    records = [];
-
-    saveRecords();
-
-    setStatus("Local audit register cleared.");
-
-});
-
-
-// DISPLAY REGISTER
-
-function renderRecords() {
-
-    $("count").textContent = records.length;
-
-    const tbody = $("records");
-
-    tbody.innerHTML = "";
-
-    if(!records.length) {
-
-        tbody.innerHTML =
-            '<tr><td colspan="5">No records available.</td></tr>';
-
-        return;
-
-    }
-
-    records.slice(0,100).forEach(record => {
-
-        const tr = document.createElement("tr");
-
-        const values = [
-
-            record.photoID,
-
-            record.school,
-
-            record.capturedLocal,
-
-            Number(record.latitude).toFixed(5) +
-            ", " +
-            Number(record.longitude).toFixed(5),
-
-            record.sha256.substring(0,16) + "..."
-
-        ];
-
-        values.forEach(value => {
-
-            const td = document.createElement("td");
-
-            td.textContent = value;
-
-            tr.appendChild(td);
-
-        });
-
-        tbody.appendChild(tr);
-
-    });
-
-}
-
-renderRecords();
-
-
-// STOP CAMERA WHEN PAGE CLOSES
+};
 
 window.addEventListener("beforeunload",function() {
 
     if(stream) {
-
-        stream.getTracks().forEach(track => {
-            track.stop();
-        });
-
+        stream.getTracks().forEach(t=>t.stop());
     }
 
-    if(currentURL) {
-        URL.revokeObjectURL(currentURL);
-    }
+    if(photoURL) URL.revokeObjectURL(photoURL);
 
 });
 
