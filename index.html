@@ -182,6 +182,11 @@ function decimalToDMS(decimal) {
 
 document.getElementById("capture").addEventListener("click", () => {
 
+    if (!video.videoWidth || !video.videoHeight) {
+        statusText.textContent = "Camera is not ready. Please wait.";
+        return;
+    }
+
     statusText.textContent = "Getting current GPS location...";
 
     if (!navigator.geolocation) {
@@ -217,12 +222,12 @@ document.getElementById("capture").addEventListener("click", () => {
             ctx.drawImage(video, 0, 0, width, height);
 
             // Geo-tag watermark
-            const bandHeight = Math.max(145, height * 0.22);
-
-            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-            ctx.fillRect(0, height - bandHeight, width, bandHeight);
-
             const fontSize = Math.max(16, width * 0.027);
+            const lineGap = fontSize * 1.55;
+            const bandHeight = Math.max(180, lineGap * 5 + 30);
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
+            ctx.fillRect(0, height - bandHeight, width, bandHeight);
 
             ctx.fillStyle = "white";
             ctx.font = "bold " + fontSize + "px Arial";
@@ -230,7 +235,6 @@ document.getElementById("capture").addEventListener("click", () => {
 
             const left = 20;
             const top = height - bandHeight + 15;
-            const lineGap = fontSize * 1.55;
 
             ctx.fillText(
                 "GPS: " + latitude.toFixed(6) + ", " +
@@ -255,12 +259,20 @@ document.getElementById("capture").addEventListener("click", () => {
                 left, top + lineGap * 3
             );
 
+            // APP CREDIT LINE
+            ctx.font = "bold " + fontSize + "px Arial";
+
+            ctx.fillText(
+                "App created by Shashank Sharma",
+                left, top + lineGap * 4
+            );
+
             // Create JPEG
             const jpegData = canvas.toDataURL("image/jpeg", 0.95);
 
             try {
 
-                // EXIF GPS metadata
+                // EMBED EXIF GPS METADATA
                 const zeroth = {};
                 const exif = {};
                 const gps = {};
@@ -304,7 +316,8 @@ document.getElementById("capture").addEventListener("click", () => {
                 preview.src = photoData;
                 downloadButton.style.display = "inline-block";
 
-                statusText.textContent = "Geo-tagged photo captured successfully.";
+                statusText.textContent =
+                    "Geo-tagged photo captured successfully.";
 
             } catch (error) {
 
@@ -314,7 +327,7 @@ document.getElementById("capture").addEventListener("click", () => {
                 downloadButton.style.display = "inline-block";
 
                 statusText.textContent =
-                    "Photo captured. GPS watermark added; EXIF metadata could not be embedded.";
+                    "Photo captured with visible GPS watermark. EXIF metadata could not be embedded.";
 
             }
 
@@ -323,7 +336,7 @@ document.getElementById("capture").addEventListener("click", () => {
         error => {
 
             statusText.textContent =
-                "Unable to get GPS. Please enable location permission and try again.";
+                "Unable to get GPS. Enable location permission and try again.";
 
         },
 
