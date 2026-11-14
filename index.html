@@ -1,32 +1,153 @@
-// GEO-TAG WATERMARK
+document.getElementById("capture").addEventListener("click", () => {
 
-const fontSize = Math.max(16, width * 0.027);
-const lineGap = fontSize * 1.6;
+    if (!video.videoWidth) {
+        statusText.textContent = "Camera is not ready.";
+        return;
+    }
 
-const watermarkLines = [
-    "GPS: " + latitude.toFixed(6) + ", " + longitude.toFixed(6),
-    "Date & Time: " + dateTime,
-    "GPS Accuracy: " + Math.round(accuracy) + " metres",
-    "Coordinates captured at photo time",
-    "APP CREATED BY SHASHANK SHARMA"
-];
+    statusText.textContent =
+        "Searching for accurate GPS location. Please wait outdoors...";
 
-const bandHeight = lineGap * watermarkLines.length + 35;
+    navigator.geolocation.getCurrentPosition(
 
-ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-ctx.fillRect(0, height - bandHeight, width, bandHeight);
+        position => {
 
-ctx.textBaseline = "top";
-ctx.fillStyle = "white";
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
 
-watermarkLines.forEach((line, index) => {
-    ctx.font = index === 4
-        ? "bold " + fontSize + "px Arial"
-        : fontSize + "px Arial";
+            if (accuracy > 50) {
+                statusText.textContent =
+                    "GPS accuracy is " + Math.round(accuracy) +
+                    " metres. Required: 50 metres or better. " +
+                    "Move outdoors and try again.";
+                return;
+            }
 
-    ctx.fillText(
-        line,
-        20,
-        height - bandHeight + 15 + index * lineGap
+            const now = new Date();
+
+            const dateTime = now.getFullYear() + ":" +
+                String(now.getMonth() + 1).padStart(2, "0") + ":" +
+                String(now.getDate()).padStart(2, "0") + " " +
+                String(now.getHours()).padStart(2, "0") + ":" +
+                String(now.getMinutes()).padStart(2, "0") + ":" +
+                String(now.getSeconds()).padStart(2, "0");
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.drawImage(video, 0, 0, width, height);
+
+            const fontSize = Math.max(16, width * 0.027);
+            const lineGap = fontSize * 1.6;
+
+            const watermarkLines = [
+                "GPS: " + latitude.toFixed(6) + ", " +
+                    longitude.toFixed(6),
+                "Date & Time: " + dateTime,
+                "GPS Accuracy: " + Math.round(accuracy) + " metres",
+                "Coordinates captured at photo time",
+                "APP CREATED BY SHASHANK SHARMA"
+            ];
+
+            const bandHeight = lineGap * 5 + 35;
+
+            ctx.fillStyle = "rgba(0,0,0,0.85)";
+            ctx.fillRect(0, height - bandHeight, width, bandHeight);
+
+            ctx.textBaseline = "top";
+            ctx.fillStyle = "white";
+
+            watermarkLines.forEach((line, index) => {
+
+                ctx.font = index === 4
+                    ? "bold " + fontSize + "px Arial"
+                    : fontSize + "px Arial";
+
+                ctx.fillText(
+                    line,
+                    20,
+                    height - bandHeight + 15 + index * lineGap
+                );
+
+            });
+
+            const jpegData = canvas.toDataURL("image/jpeg", 0.95);
+
+            try {
+
+                const zeroth = {};
+                const exif = {};
+                const gps = {};
+
+                zeroth[piexif.ImageIFD.DateTime] = dateTime;
+
+                exif[piexif.ExifIFD.DateTimeOriginal] = dateTime;
+                exif[piexif.ExifIFD.DateTimeDigitized] = dateTime;
+
+                gps[piexif.GPSIFD.GPSLatitudeRef] =
+                    latitude >= 0 ? "N" : "S";
+
+                gps[piexif.GPSIFD.GPSLatitude] =
+                    decimalToDMS(latitude);
+
+                gps[piexif.GPSIFD.GPSLongitudeRef] =
+                    longitude >= 0 ? "E" : "W";
+
+                gps[piexif.GPSIFD.GPSLongitude] =
+                    decimalToDMS(longitude);
+
+                gps[piexif.GPSIFD.GPSDateStamp] =
+                    dateTime.substring(0, 10);
+
+                gps[piexif.GPSIFD.GPSTimeStamp] = [
+                    [now.getUTCHours(), 1],
+                    [now.getUTCMinutes(), 1],
+                    [now.getUTCSeconds(), 1]
+                ];
+
+                const exifBytes = piexif.dump({
+                    "0th": zeroth,
+                    "Exif": exif,
+                    "GPS": gps
+                });
+
+                photoData = piexif.insert(exifBytes, jpegData);
+
+            } catch (error) {
+
+                photoData = jpegData;
+
+                statusText.textContent =
+                    "Warning: GPS watermark added, but EXIF could not be embedded.";
+
+            }
+
+            preview.src = photoData;
+            downloadButton.style.display = "inline-block";
+
+            statusText.textContent =
+                "Photo captured. GPS accuracy: " +
+                Math.round(accuracy) + " metres.";
+
+        },
+
+        error => {
+
+            statusText.textContent =
+                "GPS unavailable. Enable location services and try outdoors.";
+
+        },
+
+        {
+            enableHighAccuracy: true,
+            timeout: 60000,
+            maximumAge: 0
+        }
+
     );
+
 });
