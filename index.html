@@ -1,153 +1,600 @@
-document.getElementById("capture").addEventListener("click", () => {
 
-    if (!video.videoWidth) {
-        statusText.textContent = "Camera is not ready.";
-        return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>GeoTag Camera</title>
+
+<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
+
+<style>
+    * {
+        box-sizing: border-box;
     }
 
+    body {
+        font-family: Arial, sans-serif;
+        background: #f2f2f2;
+        text-align: center;
+        padding: 15px;
+        margin: 0;
+    }
+
+    h2 {
+        margin: 10px 0 18px;
+    }
+
+    video {
+        width: 100%;
+        max-width: 600px;
+        background: black;
+        border-radius: 10px;
+    }
+
+    button {
+        padding: 13px 18px;
+        margin: 8px 4px;
+        border: none;
+        border-radius: 6px;
+        background: #1769aa;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    #capture {
+        background: #198754;
+    }
+
+    #download {
+        background: #333;
+        display: none;
+    }
+
+    #status {
+        margin: 15px auto;
+        max-width: 600px;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    #preview {
+        width: 100%;
+        max-width: 600px;
+        margin-top: 15px;
+        border-radius: 8px;
+        display: none;
+    }
+
+    canvas {
+        display: none;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>GeoTag Camera</h2>
+
+<video id="video" autoplay playsinline></video>
+
+<br>
+
+<button id="switchCamera">Switch to Front Camera</button>
+
+<br>
+
+<button id="capture">Capture Photo</button>
+
+<div id="status">Starting camera...</div>
+
+<canvas id="canvas"></canvas>
+
+<img id="preview" alt="GeoTagged photograph">
+
+<br>
+
+<button id="download">Download GeoTagged Photo</button>
+
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const statusText = document.getElementById("status");
+const preview = document.getElementById("preview");
+
+const captureButton = document.getElementById("capture");
+const switchButton = document.getElementById("switchCamera");
+const downloadButton = document.getElementById("download");
+
+let stream = null;
+let currentFacingMode = "environment";
+let photoData = null;
+
+
+// START CAMERA
+
+async function startCamera() {
+
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+
+    try {
+
+        stream = await navigator.mediaDevices.getUserMedia({
+
+            video: {
+                facingMode: {
+                    ideal: currentFacingMode
+                }
+            },
+
+            audio: false
+
+        });
+
+        video.srcObject = stream;
+
+        await video.play();
+
+        switchButton.textContent =
+            currentFacingMode === "environment"
+            ? "Switch to Front Camera"
+            : "Switch to Back Camera";
+
+        statusText.textContent =
+            "Camera ready. You can capture your photograph.";
+
+    } catch (error) {
+
+        statusText.textContent =
+            "Camera unavailable. Please allow camera permission and try again.";
+
+    }
+
+}
+
+
+// SWITCH FRONT AND BACK CAMERA
+
+switchButton.addEventListener("click", async () => {
+
+    currentFacingMode =
+        currentFacingMode === "environment"
+        ? "user"
+        : "environment";
+
+    await startCamera();
+
+});
+
+
+// CONVERT DECIMAL GPS TO EXIF DMS
+
+function decimalToDMS(decimal) {
+
+    const absolute = Math.abs(decimal);
+
+    const degrees = Math.floor(absolute);
+
+    const minutesFull = (absolute - degrees) * 60;
+
+    const minutes = Math.floor(minutesFull);
+
+    const seconds = (minutesFull - minutes) * 60;
+
+    return [
+        [degrees, 1],
+        [minutes, 1],
+        [Math.round(seconds * 10000), 10000]
+    ];
+
+}
+
+
+// DRAW WATERMARK TEXT WITH AUTOMATIC LINE WRAPPING
+
+function wrapText(text, maxWidth, font) {
+
+    ctx.font = font;
+
+    const words = text.split(" ");
+    const lines = [];
+
+    let line = "";
+
+    words.forEach(word => {
+
+        const testLine = line
+            ? line + " " + word
+            : word;
+
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+
+            lines.push(line);
+            line = word;
+
+        } else {
+
+            line = testLine;
+
+        }
+
+    });
+
+    if (line) {
+        lines.push(line);
+    }
+
+    return lines;
+
+}
+
+
+// CAPTURE PHOTO AND GPS
+
+captureButton.addEventListener("click", async () => {
+
+    if (!video.videoWidth || !video.videoHeight) {
+
+        statusText.textContent = "Camera is not ready.";
+        return;
+
+    }
+
+    if (!navigator.geolocation) {
+
+        statusText.textContent = "GPS is not supported by this browser.";
+        return;
+
+    }
+
+    captureButton.disabled = true;
+
+    downloadButton.style.display = "none";
+
     statusText.textContent =
-        "Searching for accurate GPS location. Please wait outdoors...";
+        "Getting current location. Please wait...";
 
     navigator.geolocation.getCurrentPosition(
 
         position => {
 
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            const accuracy = position.coords.accuracy;
-
-            if (accuracy > 50) {
-                statusText.textContent =
-                    "GPS accuracy is " + Math.round(accuracy) +
-                    " metres. Required: 50 metres or better. " +
-                    "Move outdoors and try again.";
-                return;
-            }
-
-            const now = new Date();
-
-            const dateTime = now.getFullYear() + ":" +
-                String(now.getMonth() + 1).padStart(2, "0") + ":" +
-                String(now.getDate()).padStart(2, "0") + " " +
-                String(now.getHours()).padStart(2, "0") + ":" +
-                String(now.getMinutes()).padStart(2, "0") + ":" +
-                String(now.getSeconds()).padStart(2, "0");
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            const width = canvas.width;
-            const height = canvas.height;
-
-            ctx.drawImage(video, 0, 0, width, height);
-
-            const fontSize = Math.max(16, width * 0.027);
-            const lineGap = fontSize * 1.6;
-
-            const watermarkLines = [
-                "GPS: " + latitude.toFixed(6) + ", " +
-                    longitude.toFixed(6),
-                "Date & Time: " + dateTime,
-                "GPS Accuracy: " + Math.round(accuracy) + " metres",
-                "Coordinates captured at photo time",
-                "APP CREATED BY SHASHANK SHARMA"
-            ];
-
-            const bandHeight = lineGap * 5 + 35;
-
-            ctx.fillStyle = "rgba(0,0,0,0.85)";
-            ctx.fillRect(0, height - bandHeight, width, bandHeight);
-
-            ctx.textBaseline = "top";
-            ctx.fillStyle = "white";
-
-            watermarkLines.forEach((line, index) => {
-
-                ctx.font = index === 4
-                    ? "bold " + fontSize + "px Arial"
-                    : fontSize + "px Arial";
-
-                ctx.fillText(
-                    line,
-                    20,
-                    height - bandHeight + 15 + index * lineGap
-                );
-
-            });
-
-            const jpegData = canvas.toDataURL("image/jpeg", 0.95);
-
             try {
 
-                const zeroth = {};
-                const exif = {};
-                const gps = {};
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
 
-                zeroth[piexif.ImageIFD.DateTime] = dateTime;
+                const now = new Date();
 
-                exif[piexif.ExifIFD.DateTimeOriginal] = dateTime;
-                exif[piexif.ExifIFD.DateTimeDigitized] = dateTime;
+                const dateTime =
+                    now.getFullYear() + ":" +
+                    String(now.getMonth() + 1).padStart(2, "0") + ":" +
+                    String(now.getDate()).padStart(2, "0") + " " +
+                    String(now.getHours()).padStart(2, "0") + ":" +
+                    String(now.getMinutes()).padStart(2, "0") + ":" +
+                    String(now.getSeconds()).padStart(2, "0");
 
-                gps[piexif.GPSIFD.GPSLatitudeRef] =
-                    latitude >= 0 ? "N" : "S";
+                // SET CANVAS SIZE
 
-                gps[piexif.GPSIFD.GPSLatitude] =
-                    decimalToDMS(latitude);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
 
-                gps[piexif.GPSIFD.GPSLongitudeRef] =
-                    longitude >= 0 ? "E" : "W";
+                const width = canvas.width;
+                const height = canvas.height;
 
-                gps[piexif.GPSIFD.GPSLongitude] =
-                    decimalToDMS(longitude);
+                // DRAW CAMERA IMAGE
 
-                gps[piexif.GPSIFD.GPSDateStamp] =
-                    dateTime.substring(0, 10);
+                ctx.drawImage(video, 0, 0, width, height);
 
-                gps[piexif.GPSIFD.GPSTimeStamp] = [
-                    [now.getUTCHours(), 1],
-                    [now.getUTCMinutes(), 1],
-                    [now.getUTCSeconds(), 1]
+
+                // WATERMARK FONT
+
+                const fontSize = Math.max(
+                    15,
+                    Math.min(25, width * 0.027)
+                );
+
+                const lineGap = fontSize * 1.55;
+
+                const maxTextWidth = width - 40;
+
+                const normalFont = fontSize + "px Arial";
+
+                const boldFont = "bold " + fontSize + "px Arial";
+
+
+                // WATERMARK CONTENT
+
+                const watermarkLines = [
+
+                    {
+                        text: "GPS: " +
+                            latitude.toFixed(6) + ", " +
+                            longitude.toFixed(6),
+                        bold: true
+                    },
+
+                    {
+                        text: "Date & Time: " + dateTime,
+                        bold: false
+                    },
+
+                    {
+                        text: "GPS Accuracy: " +
+                            Math.round(accuracy) + " metres",
+                        bold: false
+                    },
+
+                    {
+                        text: "Coordinates captured at photo time",
+                        bold: false
+                    },
+
+                    {
+                        text: "APP DESIGNED AND CREATED BY SHASHANK SHARMA",
+                        bold: true
+                    }
+
                 ];
 
-                const exifBytes = piexif.dump({
-                    "0th": zeroth,
-                    "Exif": exif,
-                    "GPS": gps
+
+                // WRAP TEXT TO FIT IMAGE
+
+                let allLines = [];
+
+                watermarkLines.forEach(item => {
+
+                    const font = item.bold
+                        ? boldFont
+                        : normalFont;
+
+                    const wrapped = wrapText(
+                        item.text,
+                        maxTextWidth,
+                        font
+                    );
+
+                    wrapped.forEach(line => {
+
+                        allLines.push({
+                            text: line,
+                            bold: item.bold
+                        });
+
+                    });
+
                 });
 
-                photoData = piexif.insert(exifBytes, jpegData);
 
-            } catch (error) {
+                // DRAW BLACK WATERMARK BACKGROUND
+
+                const padding = 15;
+
+                const bandHeight =
+                    allLines.length * lineGap + padding * 2;
+
+                const startY = height - bandHeight;
+
+                ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+
+                ctx.fillRect(
+                    0,
+                    startY,
+                    width,
+                    bandHeight
+                );
+
+
+                // DRAW ALL WATERMARK LINES
+
+                ctx.textBaseline = "top";
+
+                allLines.forEach((item, index) => {
+
+                    ctx.fillStyle = "white";
+
+                    ctx.font = item.bold
+                        ? boldFont
+                        : normalFont;
+
+                    ctx.fillText(
+                        item.text,
+                        20,
+                        startY + padding + index * lineGap
+                    );
+
+                });
+
+
+                // CONVERT TO JPEG
+
+                const jpegData = canvas.toDataURL(
+                    "image/jpeg",
+                    0.95
+                );
 
                 photoData = jpegData;
 
+
+                // EMBED GPS IN EXIF METADATA
+
+                try {
+
+                    if (typeof piexif === "undefined") {
+                        throw new Error("EXIF library unavailable");
+                    }
+
+                    const zeroth = {};
+                    const exif = {};
+                    const gps = {};
+
+                    zeroth[piexif.ImageIFD.DateTime] = dateTime;
+
+                    exif[piexif.ExifIFD.DateTimeOriginal] = dateTime;
+
+                    exif[piexif.ExifIFD.DateTimeDigitized] = dateTime;
+
+                    gps[piexif.GPSIFD.GPSLatitudeRef] =
+                        latitude >= 0 ? "N" : "S";
+
+                    gps[piexif.GPSIFD.GPSLatitude] =
+                        decimalToDMS(latitude);
+
+                    gps[piexif.GPSIFD.GPSLongitudeRef] =
+                        longitude >= 0 ? "E" : "W";
+
+                    gps[piexif.GPSIFD.GPSLongitude] =
+                        decimalToDMS(longitude);
+
+                    gps[piexif.GPSIFD.GPSDateStamp] =
+                        now.getUTCFullYear() + ":" +
+                        String(now.getUTCMonth() + 1).padStart(2, "0") + ":" +
+                        String(now.getUTCDate()).padStart(2, "0");
+
+                    gps[piexif.GPSIFD.GPSTimeStamp] = [
+
+                        [now.getUTCHours(), 1],
+                        [now.getUTCMinutes(), 1],
+                        [now.getUTCSeconds(), 1]
+
+                    ];
+
+                    const exifData = {
+
+                        "0th": zeroth,
+                        "Exif": exif,
+                        "GPS": gps
+
+                    };
+
+                    const exifBytes = piexif.dump(exifData);
+
+                    photoData = piexif.insert(
+                        exifBytes,
+                        jpegData
+                    );
+
+                } catch (exifError) {
+
+                    console.error("EXIF error:", exifError);
+
+                    statusText.textContent =
+                        "Photo captured with visible GPS watermark. EXIF metadata could not be embedded.";
+
+                }
+
+
+                // SHOW PHOTO
+
+                preview.src = photoData;
+
+                preview.style.display = "block";
+
+                downloadButton.style.display = "inline-block";
+
+
+                // SHOW GPS ACCURACY
+
+                if (accuracy <= 50) {
+
+                    statusText.textContent =
+                        "Photo captured successfully. GPS accuracy: " +
+                        Math.round(accuracy) + " metres.";
+
+                } else {
+
+                    statusText.textContent =
+                        "Photo captured, but GPS accuracy is " +
+                        Math.round(accuracy) +
+                        " metres. Try outdoors for a better GPS reading.";
+
+                }
+
+            } catch (error) {
+
+                console.error(error);
+
                 statusText.textContent =
-                    "Warning: GPS watermark added, but EXIF could not be embedded.";
+                    "Unable to process photograph. Please try again.";
 
             }
 
-            preview.src = photoData;
-            downloadButton.style.display = "inline-block";
-
-            statusText.textContent =
-                "Photo captured. GPS accuracy: " +
-                Math.round(accuracy) + " metres.";
+            captureButton.disabled = false;
 
         },
+
+
+        // GPS ERROR
 
         error => {
 
+            captureButton.disabled = false;
+
             statusText.textContent =
-                "GPS unavailable. Enable location services and try outdoors.";
+                "Unable to get GPS location. Enable location permission and try again.";
 
         },
 
+
+        // GPS SETTINGS
+
         {
+
             enableHighAccuracy: true,
+
             timeout: 60000,
+
             maximumAge: 0
+
         }
 
     );
 
 });
+
+
+// DOWNLOAD PHOTO
+
+downloadButton.addEventListener("click", () => {
+
+    if (!photoData) {
+        return;
+    }
+
+    const link = document.createElement("a");
+
+    link.href = photoData;
+
+    link.download =
+        "GeoTagged_Photo_" + Date.now() + ".jpg";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+});
+
+
+// START APPLICATION
+
+startCamera();
+
+</script>
+
+</body>
+</html>
