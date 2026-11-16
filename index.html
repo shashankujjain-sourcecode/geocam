@@ -1,32 +1,972 @@
-// GEO-TAG WATERMARK
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geo-Tag Camera | Designed by Shashank Sharma</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono for crisp GPS coordinates -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom animations and mobile viewport handling */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+        }
+        
+        /* Camera shutter flash animation */
+        @keyframes flashEffect {
+            0% { opacity: 0.95; }
+            100% { opacity: 0; }
+        }
+        .animate-flash {
+            animation: flashEffect 0.35s ease-out forwards;
+        }
 
-const fontSize = Math.max(16, width * 0.027);
-const lineGap = fontSize * 1.6;
+        /* Subtle pulse for live GPS lock indicator */
+        @keyframes pulseRing {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+        .gps-pulse::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 9999px;
+            background-color: inherit;
+            animation: pulseRing 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
 
-const watermarkLines = [
-    "GPS: " + latitude.toFixed(6) + ", " + longitude.toFixed(6),
-    "Date & Time: " + dateTime,
-    "GPS Accuracy: " + Math.round(accuracy) + " metres",
-    "Coordinates captured at photo time",
-    "APP CREATED BY SHASHANK SHARMA"
-];
+        /* Hide scrollbars in gallery strip while retaining scrollability */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col justify-between selection:bg-blue-500 selection:text-white">
 
-const bandHeight = lineGap * watermarkLines.length + 35;
+    <!-- Top Header -->
+    <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+        <div class="max-w-2xl mx-auto flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i data-lucide="map-pin" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold tracking-tight text-white leading-tight">GeoTag Cam</h1>
+                    <p class="text-[11px] text-blue-400 font-medium leading-tight">This app is designed by Shashank Sharma</p>
+                </div>
+            </div>
 
-ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-ctx.fillRect(0, height - bandHeight, width, bandHeight);
+            <!-- GPS Status Pill -->
+            <button id="refreshGpsBtn" type="button" title="Refresh GPS Location" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 active:scale-95 transition border border-slate-700 text-xs font-medium">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span id="gpsStatusDot" class="gps-pulse relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400"></span>
+                </span>
+                <span id="gpsStatusText" class="text-slate-300">Locating...</span>
+                <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5 text-slate-400"></i>
+            </button>
+        </div>
+    </header>
 
-ctx.textBaseline = "top";
-ctx.fillStyle = "white";
+    <!-- Notification Banner (Replaces alert()) -->
+    <div id="toastBanner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div class="bg-slate-800/95 backdrop-blur-md border border-slate-700 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3">
+            <i id="toastIcon" data-lucide="info" class="w-5 h-5 text-blue-400 shrink-0"></i>
+            <p id="toastMessage" class="text-xs sm:text-sm font-medium leading-snug"></p>
+        </div>
+    </div>
 
-watermarkLines.forEach((line, index) => {
-    ctx.font = index === 4
-        ? "bold " + fontSize + "px Arial"
-        : fontSize + "px Arial";
+    <!-- Main Content Container -->
+    <main class="flex-1 w-full max-w-2xl mx-auto px-4 py-4 flex flex-col gap-4">
 
-    ctx.fillText(
-        line,
-        20,
-        height - bandHeight + 15 + index * lineGap
-    );
-});
+        <!-- Live Telemetry Card -->
+        <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-lg">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs mb-3">
+                <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5">
+                    <span class="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold mb-0.5">Latitude</span>
+                    <span id="liveLat" class="font-mono text-sm font-semibold text-emerald-400">--.------°</span>
+                </div>
+                <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5">
+                    <span class="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold mb-0.5">Longitude</span>
+                    <span id="liveLng" class="font-mono text-sm font-semibold text-emerald-400">--.------°</span>
+                </div>
+                <div class="col-span-2 sm:col-span-1 bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex sm:block justify-between items-center">
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold mb-0.5">Accuracy & Time</span>
+                        <span id="liveAcc" class="font-mono text-xs text-slate-200">± -- m</span>
+                    </div>
+                    <span id="liveClock" class="font-mono text-[11px] text-blue-400 sm:block sm:mt-0.5">--:--:--</span>
+                </div>
+            </div>
+
+            <!-- Location Label Input -->
+            <div class="relative flex items-center">
+                <i data-lucide="navigation" class="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none"></i>
+                <input 
+                    type="text" 
+                    id="locationLabelInput" 
+                    placeholder="Add location name or note (auto-detecting address...)" 
+                    maxlength="80"
+                    class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition"
+                >
+                <button id="clearLabelBtn" type="button" title="Clear note" class="hidden absolute right-2.5 p-1 text-slate-400 hover:text-white rounded-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- VIEW 1: LIVE CAMERA VIEWFINDER -->
+        <section id="cameraViewSection" class="flex flex-col gap-4">
+            <div class="relative w-full aspect-[3/4] sm:aspect-[4/3] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+                
+                <!-- Live Video Element -->
+                <video id="cameraFeed" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
+
+                <!-- Camera Fallback / Permission State -->
+                <div id="cameraPlaceholder" class="flex flex-col items-center justify-center text-center p-6 max-w-xs">
+                    <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 text-blue-400">
+                        <i data-lucide="camera" class="w-8 h-8"></i>
+                    </div>
+                    <h2 id="cameraFallbackTitle" class="text-base font-semibold text-white mb-1.5">Initializing Camera...</h2>
+                    <p id="cameraFallbackDesc" class="text-xs text-slate-400 mb-5 leading-relaxed">
+                        Allow camera & location permissions to take live geo-tagged photos, or use your device's native camera/gallery below.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-2.5 w-full">
+                        <button id="retryCameraBtn" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-xs font-semibold text-white transition flex items-center justify-center gap-2">
+                            <i data-lucide="video" class="w-4 h-4"></i>
+                            Enable Live Cam
+                        </button>
+                        <label for="fileInputFallback" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 text-xs font-semibold text-white transition flex items-center justify-center gap-2 cursor-pointer">
+                            <i data-lucide="image-plus" class="w-4 h-4"></i>
+                            Native Cam / File
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Live HUD Geo-Tag Preview Card Overlay on Viewfinder -->
+                <div id="liveHudOverlay" class="absolute bottom-3 left-3 right-3 bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-2xl p-3 pointer-events-none transition-opacity">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <p id="hudTitle" class="text-xs font-semibold text-white truncate">GPS Coordinates Stamp</p>
+                            <p id="hudCoords" class="font-mono text-[11px] text-emerald-400 mt-0.5 truncate">Waiting for GPS signal...</p>
+                            <p id="hudTimestamp" class="font-mono text-[10px] text-slate-300 mt-0.5">--</p>
+                        </div>
+                        <div class="bg-blue-500/20 border border-blue-400/30 rounded-lg px-2 py-1 shrink-0">
+                            <span class="text-[10px] font-bold text-blue-300 tracking-wide uppercase">GEO-TAG</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-white/10 flex items-center justify-between">
+                        <span class="text-[10px] font-medium text-blue-300">This app is designed by Shashank Sharma</span>
+                    </div>
+                </div>
+
+                <!-- Top Camera Controls (Switch Camera) -->
+                <div id="cameraTopControls" class="hidden absolute top-3 right-3 flex items-center gap-2">
+                    <button id="switchCameraBtn" type="button" title="Switch Front/Rear Camera" class="p-3 rounded-full bg-slate-950/70 hover:bg-slate-900/90 active:scale-90 backdrop-blur-md border border-white/15 text-white transition shadow-lg">
+                        <i data-lucide="switch-camera" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Shutter Flash Effect Layer -->
+                <div id="shutterFlash" class="absolute inset-0 bg-white opacity-0 pointer-events-none"></div>
+            </div>
+
+            <!-- Primary Camera Action Bar -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-around gap-4 shadow-lg">
+                <!-- Native Camera / Upload Fallback Input -->
+                <input type="file" id="fileInputFallback" accept="image/*" capture="environment" class="hidden">
+                <label for="fileInputFallback" class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl hover:bg-slate-800 active:scale-95 transition cursor-pointer text-slate-300 hover:text-white min-w-[76px]">
+                    <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                        <i data-lucide="upload" class="w-5 h-5 text-blue-400"></i>
+                    </div>
+                    <span class="text-[11px] font-medium">Upload / Cam</span>
+                </label>
+
+                <!-- Main Shutter Button -->
+                <button id="captureBtn" type="button" aria-label="Capture Geo-Tagged Photo" class="relative group p-1.5 rounded-full border-4 border-white/90 hover:border-blue-400 active:scale-90 transition duration-150 shadow-xl shadow-blue-500/10">
+                    <div class="w-16 h-16 rounded-full bg-white group-hover:bg-blue-500 transition duration-150 flex items-center justify-center">
+                        <i data-lucide="camera" class="w-7 h-7 text-slate-900 group-hover:text-white transition"></i>
+                    </div>
+                </button>
+
+                <!-- Switch Camera Secondary Button -->
+                <button id="switchCameraBottomBtn" type="button" class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl hover:bg-slate-800 active:scale-95 transition text-slate-300 hover:text-white min-w-[76px]">
+                    <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                        <i data-lucide="refresh-ccw" class="w-5 h-5 text-emerald-400"></i>
+                    </div>
+                    <span id="cameraFacingLabel" class="text-[11px] font-medium">Rear Cam</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- VIEW 2: CAPTURED PHOTO PREVIEW & DOWNLOAD -->
+        <section id="previewViewSection" class="hidden flex-col gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-3 shadow-2xl">
+                <div class="flex items-center justify-between px-2 pb-2.5">
+                    <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        Geo-Tag Stamped Successfully
+                    </span>
+                    <span id="photoResolutionBadge" class="text-[11px] font-mono text-slate-400">HD JPEG</span>
+                </div>
+                
+                <!-- Stamped Output Image Preview -->
+                <div class="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                    <img id="stampedPreviewImg" src="" alt="Geo-tagged photo preview" class="w-full h-auto max-h-[62vh] object-contain">
+                </div>
+            </div>
+
+            <!-- Preview Action Buttons -->
+            <div class="grid grid-cols-2 gap-3">
+                <button id="retakeBtn" type="button" class="py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 text-sm font-semibold text-white transition flex items-center justify-center gap-2 shadow-lg">
+                    <i data-lucide="camera" class="w-4 h-4 text-slate-300"></i>
+                    Take Another
+                </button>
+                <a id="downloadBtn" href="#" download="geotag-photo.jpg" class="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-sm font-semibold text-white transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Download Photo
+                </a>
+            </div>
+        </section>
+
+        <!-- RECENT SESSION GALLERY STRIP -->
+        <section id="gallerySection" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+            <div class="flex items-center justify-between mb-2.5">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="images" class="w-3.5 h-3.5 text-blue-400"></i>
+                    Session Captures (<span id="galleryCount">0</span>)
+                </h3>
+                <button id="clearGalleryBtn" type="button" class="text-[11px] text-slate-400 hover:text-rose-400 transition">Clear All</button>
+            </div>
+            <div id="galleryStrip" class="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+                <!-- Thumbnails injected dynamically -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Hidden High-Res Processing Canvas -->
+    <canvas id="stampCanvas" class="hidden"></canvas>
+
+    <!-- App Footer -->
+    <footer class="bg-slate-900/90 border-t border-slate-800/80 py-3.5 px-4 mt-4">
+        <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 text-center">
+            <p class="text-xs font-semibold text-blue-400">
+                This app is designed by Shashank Sharma
+            </p>
+            <p class="text-[11px] text-slate-500">
+                Real-Time GPS &bull; Canvas Photo Stamper
+            </p>
+        </div>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        /**
+         * Application State
+         */
+        const state = {
+            stream: null,
+            facingMode: 'environment', // 'environment' (rear) or 'user' (front)
+            cameraActive: false,
+            gps: {
+                lat: null,
+                lng: null,
+                accuracy: null,
+                timestamp: null,
+                watchId: null,
+                autoAddress: '',
+                lastGeocodedKey: ''
+            },
+            userEditedLabel: false,
+            gallery: []
+        };
+
+        /**
+         * DOM Elements Reference
+         */
+        const els = {
+            video: document.getElementById('cameraFeed'),
+            cameraPlaceholder: document.getElementById('cameraPlaceholder'),
+            cameraFallbackTitle: document.getElementById('cameraFallbackTitle'),
+            cameraFallbackDesc: document.getElementById('cameraFallbackDesc'),
+            cameraTopControls: document.getElementById('cameraTopControls'),
+            retryCameraBtn: document.getElementById('retryCameraBtn'),
+            switchCameraBtn: document.getElementById('switchCameraBtn'),
+            switchCameraBottomBtn: document.getElementById('switchCameraBottomBtn'),
+            cameraFacingLabel: document.getElementById('cameraFacingLabel'),
+            captureBtn: document.getElementById('captureBtn'),
+            fileInputFallback: document.getElementById('fileInputFallback'),
+            shutterFlash: document.getElementById('shutterFlash'),
+
+            // GPS & HUD elements
+            refreshGpsBtn: document.getElementById('refreshGpsBtn'),
+            refreshIcon: document.getElementById('refreshIcon'),
+            gpsStatusDot: document.getElementById('gpsStatusDot'),
+            gpsStatusText: document.getElementById('gpsStatusText'),
+            liveLat: document.getElementById('liveLat'),
+            liveLng: document.getElementById('liveLng'),
+            liveAcc: document.getElementById('liveAcc'),
+            liveClock: document.getElementById('liveClock'),
+            locationLabelInput: document.getElementById('locationLabelInput'),
+            clearLabelBtn: document.getElementById('clearLabelBtn'),
+
+            // Live Viewfinder HUD
+            hudTitle: document.getElementById('hudTitle'),
+            hudCoords: document.getElementById('hudCoords'),
+            hudTimestamp: document.getElementById('hudTimestamp'),
+
+            // Sections & Preview
+            cameraViewSection: document.getElementById('cameraViewSection'),
+            previewViewSection: document.getElementById('previewViewSection'),
+            stampedPreviewImg: document.getElementById('stampedPreviewImg'),
+            photoResolutionBadge: document.getElementById('photoResolutionBadge'),
+            retakeBtn: document.getElementById('retakeBtn'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            canvas: document.getElementById('stampCanvas'),
+
+            // Gallery
+            gallerySection: document.getElementById('gallerySection'),
+            galleryStrip: document.getElementById('galleryStrip'),
+            galleryCount: document.getElementById('galleryCount'),
+            clearGalleryBtn: document.getElementById('clearGalleryBtn'),
+
+            // Toast Notification
+            toastBanner: document.getElementById('toastBanner'),
+            toastMessage: document.getElementById('toastMessage'),
+            toastIcon: document.getElementById('toastIcon')
+        };
+
+        /**
+         * Utility: Show non-blocking notification toast
+         */
+        let toastTimeout = null;
+        function showToast(message, type = 'info') {
+            els.toastMessage.textContent = message;
+            
+            const iconMap = {
+                info: { icon: 'info', color: 'text-blue-400' },
+                success: { icon: 'check-circle', color: 'text-emerald-400' },
+                warning: { icon: 'alert-triangle', color: 'text-amber-400' },
+                error: { icon: 'alert-circle', color: 'text-rose-400' }
+            };
+            const selected = iconMap[type] || iconMap.info;
+            els.toastIcon.setAttribute('data-lucide', selected.icon);
+            els.toastIcon.className = `w-5 h-5 shrink-0 ${selected.color}`;
+            lucide.createIcons();
+
+            els.toastBanner.classList.remove('opacity-0', '-translate-y-2');
+            els.toastBanner.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                els.toastBanner.classList.remove('opacity-100', 'translate-y-0');
+                els.toastBanner.classList.add('opacity-0', '-translate-y-2');
+            }, 3500);
+        }
+
+        /**
+         * Utility: Format Decimal Degrees to DMS (Degrees, Minutes, Seconds)
+         */
+        function toDMS(coordinate, isLat) {
+            if (coordinate === null || coordinate === undefined || isNaN(coordinate)) return '--';
+            const absolute = Math.abs(coordinate);
+            const degrees = Math.floor(absolute);
+            const minutesNotTruncated = (absolute - degrees) * 60;
+            const minutes = Math.floor(minutesNotTruncated);
+            const seconds = ((minutesNotTruncated - minutes) * 60).toFixed(2);
+
+            const direction = isLat
+                ? (coordinate >= 0 ? 'N' : 'S')
+                : (coordinate >= 0 ? 'E' : 'W');
+
+            return `${degrees}°${String(minutes).padStart(2, '0')}'${String(seconds).padStart(5, '0')}"${direction}`;
+        }
+
+        /**
+         * Utility: Format Date & Time cleanly
+         */
+        function formatDateTime(dateObj = new Date()) {
+            const optionsDate = { year: 'numeric', month: 'short', day: '2-digit' };
+            const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            const dateStr = dateObj.toLocaleDateString('en-US', optionsDate);
+            const timeStr = dateObj.toLocaleTimeString('en-US', optionsTime);
+            return `${dateStr} • ${timeStr}`;
+        }
+
+        /**
+         * Live Clock Updater (1-second interval)
+         */
+        function startClock() {
+            const updateClock = () => {
+                const now = new Date();
+                els.liveClock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                els.hudTimestamp.textContent = formatDateTime(now);
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        /**
+         * GPS Geolocation Detection & Reverse Geocoding
+         */
+        function initGeolocation() {
+            if (!('geolocation' in navigator)) {
+                setGpsError('GPS Unsupported');
+                showToast('Geolocation is not supported by your browser.', 'error');
+                return;
+            }
+
+            els.gpsStatusText.textContent = 'Locating...';
+            els.gpsStatusDot.className = 'gps-pulse relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400';
+            els.refreshIcon.classList.add('animate-spin');
+
+            if (state.gps.watchId !== null) {
+                navigator.geolocation.clearWatch(state.gps.watchId);
+            }
+
+            const geoOptions = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            };
+
+            state.gps.watchId = navigator.geolocation.watchPosition(
+                handleGpsSuccess,
+                handleGpsError,
+                geoOptions
+            );
+        }
+
+        function handleGpsSuccess(position) {
+            const { latitude, longitude, accuracy } = position.coords;
+            state.gps.lat = latitude;
+            state.gps.lng = longitude;
+            state.gps.accuracy = Math.round(accuracy);
+            state.gps.timestamp = position.timestamp;
+
+            els.refreshIcon.classList.remove('animate-spin');
+            els.gpsStatusDot.className = 'gps-pulse relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400';
+            els.gpsStatusText.textContent = `GPS Locked (±${state.gps.accuracy}m)`;
+
+            const latStr = `${latitude.toFixed(6)}°`;
+            const lngStr = `${longitude.toFixed(6)}°`;
+            const dmsSummary = `${toDMS(latitude, true)}  ${toDMS(longitude, false)}`;
+
+            els.liveLat.textContent = latStr;
+            els.liveLng.textContent = lngStr;
+            els.liveAcc.textContent = `± ${state.gps.accuracy} m`;
+
+            els.hudCoords.textContent = `${latStr}, ${lngStr} (${dmsSummary})`;
+
+            // Optional lightweight reverse geocoding (OpenStreetMap Nominatim) when position shifts significantly
+            const geoKey = `${latitude.toFixed(3)},${longitude.toFixed(3)}`;
+            if (geoKey !== state.gps.lastGeocodedKey) {
+                state.gps.lastGeocodedKey = geoKey;
+                fetchLocationName(latitude, longitude);
+            }
+        }
+
+        function handleGpsError(error) {
+            els.refreshIcon.classList.remove('animate-spin');
+            let msg = 'GPS Unavailable';
+            if (error.code === error.PERMISSION_DENIED) {
+                msg = 'GPS Denied';
+                showToast('Location access denied. Please enable GPS permissions in browser settings.', 'warning');
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+                msg = 'No Signal';
+            } else if (error.code === error.TIMEOUT) {
+                msg = 'GPS Timeout';
+            }
+            setGpsError(msg);
+        }
+
+        function setGpsError(label) {
+            els.gpsStatusDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500';
+            els.gpsStatusText.textContent = label;
+            if (state.gps.lat === null) {
+                els.hudCoords.textContent = 'GPS coordinates unavailable (check permissions)';
+            }
+        }
+
+        /**
+         * Reverse Geocoding via OpenStreetMap Nominatim (graceful fallback if offline)
+         */
+        async function fetchLocationName(lat, lng) {
+            try {
+                const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16`;
+                const response = await fetch(url, {
+                    headers: { 'Accept-Language': 'en' }
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data && data.address) {
+                    const addr = data.address;
+                    const parts = [
+                        addr.suburb || addr.neighbourhood || addr.road || addr.village || addr.town,
+                        addr.city || addr.state_district || addr.county,
+                        addr.state,
+                        addr.country
+                    ].filter(Boolean);
+
+                    const formattedAddress = parts.slice(0, 3).join(', ');
+                    if (formattedAddress) {
+                        state.gps.autoAddress = formattedAddress;
+                        if (!state.userEditedLabel) {
+                            els.locationLabelInput.value = formattedAddress;
+                            updateHudTitle();
+                        }
+                    }
+                }
+            } catch (err) {
+                // Silent fail if offline or rate-limited; GPS coordinates still function normally
+            }
+        }
+
+        /**
+         * Sync Location Input with Live Viewfinder HUD
+         */
+        function updateHudTitle() {
+            const val = els.locationLabelInput.value.trim();
+            els.hudTitle.textContent = val || 'Geo-Tagged Location Capture';
+            if (val.length > 0) {
+                els.clearLabelBtn.classList.remove('hidden');
+            } else {
+                els.clearLabelBtn.classList.add('hidden');
+            }
+        }
+
+        els.locationLabelInput.addEventListener('input', () => {
+            state.userEditedLabel = els.locationLabelInput.value.trim().length > 0;
+            updateHudTitle();
+        });
+
+        els.clearLabelBtn.addEventListener('click', () => {
+            els.locationLabelInput.value = '';
+            state.userEditedLabel = false;
+            updateHudTitle();
+            els.locationLabelInput.focus();
+        });
+
+        /**
+         * Camera Stream Initialization (navigator.mediaDevices.getUserMedia)
+         */
+        async function startCamera() {
+            // Stop existing tracks first
+            stopCamera();
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showCameraFallback(
+                    'Live Camera Unavailable',
+                    'Your browser or connection (requires HTTPS) does not support live camera streaming. Use "Native Cam / File" below.'
+                );
+                return;
+            }
+
+            try {
+                const constraints = {
+                    audio: false,
+                    video: {
+                        facingMode: { ideal: state.facingMode },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                state.stream = stream;
+                state.cameraActive = true;
+
+                els.video.srcObject = stream;
+                await els.video.play();
+
+                // Mirror front-facing camera preview
+                if (state.facingMode === 'user') {
+                    els.video.classList.add('scale-x-[-1]');
+                    els.cameraFacingLabel.textContent = 'Front Cam';
+                } else {
+                    els.video.classList.remove('scale-x-[-1]');
+                    els.cameraFacingLabel.textContent = 'Rear Cam';
+                }
+
+                els.video.classList.remove('hidden');
+                els.cameraPlaceholder.classList.add('hidden');
+                els.cameraTopControls.classList.remove('hidden');
+            } catch (err) {
+                console.warn('Camera access error:', err);
+                state.cameraActive = false;
+                showCameraFallback(
+                    'Camera Access Needed',
+                    'Could not open live camera stream. Grant camera permission or tap "Native Cam / File" to take or upload a photo.'
+                );
+            }
+        }
+
+        function stopCamera() {
+            if (state.stream) {
+                state.stream.getTracks().forEach(track => track.stop());
+                state.stream = null;
+            }
+            state.cameraActive = false;
+        }
+
+        function showCameraFallback(title, desc) {
+            els.video.classList.add('hidden');
+            els.cameraTopControls.classList.add('hidden');
+            els.cameraPlaceholder.classList.remove('hidden');
+            els.cameraFallbackTitle.textContent = title;
+            els.cameraFallbackDesc.textContent = desc;
+        }
+
+        function toggleCameraFacing() {
+            state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+            startCamera();
+        }
+
+        /**
+         * Capture Photo from Live Stream OR Uploaded File
+         */
+        function triggerShutterFlash() {
+            els.shutterFlash.classList.remove('animate-flash');
+            void els.shutterFlash.offsetWidth; // trigger reflow
+            els.shutterFlash.classList.add('animate-flash');
+        }
+
+        function handleLiveCapture() {
+            if (state.cameraActive && els.video.readyState >= 2) {
+                triggerShutterFlash();
+                const mirror = state.facingMode === 'user';
+                stampImageOntoCanvas(els.video, els.video.videoWidth, els.video.videoHeight, mirror);
+            } else {
+                // Fallback to triggering native file/camera input if live stream isn't active
+                showToast('Opening native camera / photo selector...', 'info');
+                els.fileInputFallback.click();
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    stampImageOntoCanvas(img, img.naturalWidth, img.naturalHeight, false);
+                    // Reset file input so same file can be selected again if desired
+                    els.fileInputFallback.value = '';
+                };
+                img.onerror = function() {
+                    showToast('Could not load the selected image.', 'error');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Core Canvas Geo-Tag Overlay Renderer
+         * Burns GPS coordinates, DMS, Timestamp, Location Note, and Credit Line onto the photo
+         */
+        function stampImageOntoCanvas(imageSource, sourceWidth, sourceHeight, mirrorHorizontal = false) {
+            const canvas = els.canvas;
+            const ctx = canvas.getContext('2d');
+
+            // Cap maximum dimension at 2400px for crisp quality & fast mobile memory handling
+            const maxDim = 2400;
+            let width = sourceWidth || 1280;
+            let height = sourceHeight || 960;
+
+            if (width > maxDim || height > maxDim) {
+                const ratio = Math.min(maxDim / width, maxDim / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // 1. Draw the captured photo
+            ctx.save();
+            if (mirrorHorizontal) {
+                ctx.translate(width, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.drawImage(imageSource, 0, 0, width, height);
+            ctx.restore();
+
+            // 2. Prepare Geo-Tag Metadata Strings
+            const nowStr = formatDateTime(new Date());
+            const customLabel = els.locationLabelInput.value.trim();
+            const hasGps = state.gps.lat !== null && state.gps.lng !== null;
+
+            const decimalLine = hasGps
+                ? `LAT: ${state.gps.lat.toFixed(6)}°   LON: ${state.gps.lng.toFixed(6)}°`
+                : 'GPS: Coordinates Unavailable (Location Permission Required)';
+
+            const dmsLine = hasGps
+                ? `DMS: ${toDMS(state.gps.lat, true)}  ${toDMS(state.gps.lng, false)}  (±${state.gps.accuracy}m)`
+                : 'DMS: --°--\'--"N  --°--\'--"E';
+
+            const timeLine = `TIME: ${nowStr}`;
+            const creditLine = 'This app is designed by Shashank Sharma';
+
+            // 3. Responsive Typography Scaling relative to image dimensions
+            const baseUnit = Math.max(14, Math.round(Math.min(width, height) * 0.024));
+            const padX = Math.round(width * 0.032);
+            const padY = Math.round(height * 0.025);
+            const cardMargin = Math.round(width * 0.025);
+            const cardWidth = width - (cardMargin * 2);
+
+            const titleFontSize = Math.round(baseUnit * 1.15);
+            const dataFontSize = Math.round(baseUnit * 0.92);
+            const creditFontSize = Math.round(baseUnit * 0.96);
+            const lineHeight = Math.round(baseUnit * 1.42);
+
+            // Calculate dynamic card height based on whether location title is present
+            let totalLines = 3; // Decimal GPS + DMS/Accuracy + Timestamp
+            if (customLabel) totalLines += 1;
+
+            const dividerGap = Math.round(baseUnit * 0.8);
+            const cardHeight = (padY * 2) + (totalLines * lineHeight) + dividerGap + creditFontSize;
+            const cardX = cardMargin;
+            const cardY = height - cardHeight - cardMargin;
+            const cornerRadius = Math.round(baseUnit * 0.85);
+
+            // 4. Draw Semi-Transparent Dark Geo-Tag Card with Subtle Border
+            ctx.save();
+            drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, cornerRadius);
+            ctx.fillStyle = 'rgba(10, 15, 28, 0.80)';
+            ctx.fill();
+
+            ctx.lineWidth = Math.max(2, Math.round(baseUnit * 0.08));
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.stroke();
+
+            // Left accent bar inside the overlay card
+            const accentWidth = Math.max(5, Math.round(baseUnit * 0.28));
+            drawRoundedRect(ctx, cardX + Math.round(padX * 0.45), cardY + padY, accentWidth, cardHeight - (padY * 2), accentWidth / 2);
+            ctx.fillStyle = '#3b82f6';
+            ctx.fill();
+
+            // 5. Draw Geo-Tag Text Content
+            const textStartX = cardX + padX + Math.round(accentWidth * 1.2);
+            const maxTextWidth = cardWidth - (textStartX - cardX) - padX;
+            let currentY = cardY + padY + Math.round(lineHeight * 0.78);
+
+            // Optional Location / Note Title
+            if (customLabel) {
+                ctx.font = `700 ${titleFontSize}px Inter, system-ui, sans-serif`;
+                ctx.fillStyle = '#ffffff';
+                const fittedTitle = truncateCanvasText(ctx, `📍 ${customLabel}`, maxTextWidth);
+                ctx.fillText(fittedTitle, textStartX, currentY);
+                currentY += lineHeight;
+            }
+
+            // Decimal Coordinates
+            ctx.font = `600 ${dataFontSize}px "JetBrains Mono", monospace, sans-serif`;
+            ctx.fillStyle = '#34d399'; // Crisp emerald green
+            ctx.fillText(truncateCanvasText(ctx, decimalLine, maxTextWidth), textStartX, currentY);
+            currentY += lineHeight;
+
+            // DMS Coordinates + Accuracy
+            ctx.font = `500 ${Math.round(dataFontSize * 0.92)}px "JetBrains Mono", monospace, sans-serif`;
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillText(truncateCanvasText(ctx, dmsLine, maxTextWidth), textStartX, currentY);
+            currentY += lineHeight;
+
+            // Date & Time Stamp
+            ctx.font = `500 ${Math.round(dataFontSize * 0.92)}px "JetBrains Mono", monospace, sans-serif`;
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText(truncateCanvasText(ctx, timeLine, maxTextWidth), textStartX, currentY);
+
+            // Divider Line above Credit
+            const dividerY = currentY + Math.round(dividerGap * 0.55);
+            ctx.beginPath();
+            ctx.moveTo(textStartX, dividerY);
+            ctx.lineTo(cardX + cardWidth - padX, dividerY);
+            ctx.lineWidth = Math.max(1, Math.round(baseUnit * 0.05));
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+            ctx.stroke();
+
+            // Prominent Credit Line at Bottom of Overlay
+            const creditY = dividerY + Math.round(creditFontSize * 1.25);
+            ctx.font = `700 ${creditFontSize}px Inter, system-ui, sans-serif`;
+            ctx.fillStyle = '#93c5fd'; // Highlighted soft blue
+            ctx.fillText(truncateCanvasText(ctx, creditLine, maxTextWidth), textStartX, creditY);
+
+            ctx.restore();
+
+            // 6. Export Stamped Canvas to High-Res JPEG & Switch to Preview Mode
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.93);
+            const filename = `GeoTag_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.jpg`;
+
+            showStampedPreview(dataUrl, filename, width, height);
+            addToSessionGallery(dataUrl, filename);
+        }
+
+        /**
+         * Helper: Draw Rounded Rectangle Path on Canvas
+         */
+        function drawRoundedRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        /**
+         * Helper: Truncate text cleanly if wider than available card width
+         */
+        function truncateCanvasText(ctx, text, maxWidth) {
+            if (ctx.measureText(text).width <= maxWidth) return text;
+            let truncated = text;
+            while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+                truncated = truncated.slice(0, -1);
+            }
+            return truncated + '...';
+        }
+
+        /**
+         * Toggle Between Live Viewfinder & Stamped Photo Preview
+         */
+        function showStampedPreview(dataUrl, filename, width, height) {
+            els.stampedPreviewImg.src = dataUrl;
+            els.downloadBtn.href = dataUrl;
+            els.downloadBtn.download = filename;
+            els.photoResolutionBadge.textContent = `${width} × ${height} JPEG`;
+
+            els.cameraViewSection.classList.add('hidden');
+            els.previewViewSection.classList.remove('hidden');
+            els.previewViewSection.classList.add('flex');
+
+            showToast('Photo captured with GPS geo-tag!', 'success');
+        }
+
+        function returnToCameraView() {
+            els.previewViewSection.classList.add('hidden');
+            els.previewViewSection.classList.remove('flex');
+            els.cameraViewSection.classList.remove('hidden');
+
+            if (!state.cameraActive) {
+                startCamera();
+            }
+        }
+
+        /**
+         * Session Gallery Strip Management
+         */
+        function addToSessionGallery(dataUrl, filename) {
+            state.gallery.unshift({ dataUrl, filename });
+            if (state.gallery.length > 12) {
+                state.gallery.pop();
+            }
+            renderGallery();
+        }
+
+        function renderGallery() {
+            if (state.gallery.length === 0) {
+                els.gallerySection.classList.add('hidden');
+                return;
+            }
+
+            els.gallerySection.classList.remove('hidden');
+            els.galleryCount.textContent = state.gallery.length;
+            els.galleryStrip.innerHTML = '';
+
+            state.gallery.forEach((item, index) => {
+                const thumbBtn = document.createElement('button');
+                thumbBtn.type = 'button';
+                thumbBtn.className = 'relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-slate-700 hover:border-blue-400 focus:border-blue-500 transition active:scale-95';
+                thumbBtn.title = `View capture #${state.gallery.length - index}`;
+
+                const img = document.createElement('img');
+                img.src = item.dataUrl;
+                img.alt = 'Captured geo-tagged thumbnail';
+                img.className = 'w-full h-full object-cover';
+
+                thumbBtn.appendChild(img);
+                thumbBtn.addEventListener('click', () => {
+                    els.stampedPreviewImg.src = item.dataUrl;
+                    els.downloadBtn.href = item.dataUrl;
+                    els.downloadBtn.download = item.filename;
+                    els.cameraViewSection.classList.add('hidden');
+                    els.previewViewSection.classList.remove('hidden');
+                    els.previewViewSection.classList.add('flex');
+                });
+
+                els.galleryStrip.appendChild(thumbBtn);
+            });
+        }
+
+        /**
+         * Event Listeners Setup
+         */
+        els.refreshGpsBtn.addEventListener('click', () => {
+            showToast('Refreshing GPS coordinates...', 'info');
+            initGeolocation();
+        });
+
+        els.retryCameraBtn.addEventListener('click', startCamera);
+        els.switchCameraBtn.addEventListener('click', toggleCameraFacing);
+        els.switchCameraBottomBtn.addEventListener('click', toggleCameraFacing);
+
+        els.captureBtn.addEventListener('click', handleLiveCapture);
+        els.fileInputFallback.addEventListener('change', handleFileUpload);
+        els.retakeBtn.addEventListener('click', returnToCameraView);
+
+        els.clearGalleryBtn.addEventListener('click', () => {
+            state.gallery = [];
+            renderGallery();
+            showToast('Session gallery cleared.', 'info');
+        });
+
+        // Initialize App on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            startClock();
+            initGeolocation();
+            startCamera();
+        });
+    </script>
+</body>
+</html>
